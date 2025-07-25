@@ -20,7 +20,7 @@ A modern, automated bash script to easily install and configure **Xray-core** on
 Run the following commands **one by one** in your terminal:
 
 ```bash
-wget -O install_xray.sh "https://raw.githubusercontent.com/OshadhaVimuB/Bash-Xray-Install/refs/heads/main/install_xray.sh"
+wget -O install_xray.sh "https://raw.githubusercontent.com/AviterX/Bash-Xray-Script/refs/heads/main/install_xray.sh"
 ```
 
 ```bash
