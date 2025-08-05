@@ -20,6 +20,10 @@ A modern, automated bash script to easily install and configure **Xray-core** on
 Run the following commands **one by one** in your terminal:
 
 ```bash
+sudo -s
+```
+
+```bash
 wget -O install_xray.sh "https://raw.githubusercontent.com/AviterX/Bash-Xray-Script/refs/heads/main/install_xray.sh"
 ```
 
