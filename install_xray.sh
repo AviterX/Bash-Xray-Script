@@ -7,7 +7,7 @@
 #   DESCRIPTION:  A comprehensive script to install and configure Xray-core
 #                 on a Debian/Ubuntu VPS for VLESS-XTLS-Reality protocol.
 #
-#       VERSION:  2.0.0
+#       VERSION:  2.1.0 (Fixed for newer Xray versions)
 #        AUTHOR:  Team AviterX
 #
 #================================================================================
@@ -50,7 +50,7 @@ function update_system() {
 
 function install_dependencies() {
     print_message "$BLUE" "Installing necessary dependencies..."
-    if ! apt-get install -y curl socat wget unzip git; then
+    if ! apt-get install -y curl socat wget unzip git openssl; then
         print_message "$RED" "Failed to install dependencies."
         exit 1
     fi
@@ -69,15 +69,60 @@ function install_xray() {
 
 function generate_keys() {
     print_message "$BLUE" "Generating Reality key pair..."
-    local key_pair
-    key_pair=$($XRAY_BINARY_PATH x25519)
-    PRIVATE_KEY=$(echo "$key_pair" | awk '/Private key/ {print $3}')
-    PUBLIC_KEY=$(echo "$key_pair" | awk '/Public key/ {print $3}')
-    if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
-        print_message "$RED" "Failed to generate Reality key pair."
+    
+    # Create a temporary file to capture the output
+    local temp_file=$(mktemp)
+    
+    # Run xray x25519 command and capture output
+    if ! "$XRAY_BINARY_PATH" x25519 > "$temp_file" 2>&1; then
+        print_message "$RED" "Failed to execute xray x25519 command."
+        rm -f "$temp_file"
         exit 1
     fi
-    print_message "$GREEN" "Reality key pair generated."
+    
+    # Debug: Show the actual output
+    print_message "$BLUE" "Xray x25519 output:"
+    cat "$temp_file"
+    
+    # Parse the output - try multiple patterns for different Xray versions
+    PRIVATE_KEY=$(grep -i "private" "$temp_file" | awk '{print $NF}' | head -1)
+    PUBLIC_KEY=$(grep -i "public" "$temp_file" | awk '{print $NF}' | head -1)
+    
+    # Alternative parsing if the above doesn't work
+    if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
+        # Try parsing line by line
+        while IFS= read -r line; do
+            if [[ "$line" =~ [Pp]rivate.*key:?[[:space:]]*([A-Za-z0-9+/=_-]+) ]]; then
+                PRIVATE_KEY="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ [Pp]ublic.*key:?[[:space:]]*([A-Za-z0-9+/=_-]+) ]]; then
+                PUBLIC_KEY="${BASH_REMATCH[1]}"
+            fi
+        done < "$temp_file"
+    fi
+    
+    # If still empty, try simpler extraction
+    if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
+        # Extract base64-like strings (common for keys)
+        local keys=($(grep -oE '[A-Za-z0-9+/=_-]{40,}' "$temp_file"))
+        if [[ ${#keys[@]} -ge 2 ]]; then
+            PRIVATE_KEY="${keys[0]}"
+            PUBLIC_KEY="${keys[1]}"
+        fi
+    fi
+    
+    # Clean up temp file
+    rm -f "$temp_file"
+    
+    # Validate keys
+    if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
+        print_message "$RED" "Failed to generate Reality key pair. Please check Xray installation."
+        print_message "$YELLOW" "You can manually generate keys with: $XRAY_BINARY_PATH x25519"
+        exit 1
+    fi
+    
+    print_message "$GREEN" "Reality key pair generated successfully."
+    print_message "$BLUE" "Private Key: $PRIVATE_KEY"
+    print_message "$BLUE" "Public Key: $PUBLIC_KEY"
 }
 
 function get_user_input() {
@@ -101,10 +146,13 @@ function get_user_input() {
 function create_config() {
     print_message "$BLUE" "Creating Xray configuration file..."
 
-    # Generate short ID
+    # Generate short ID (8 characters hex)
     SHORT_ID=$(openssl rand -hex 8)
 
-    # Create the config file
+    # Ensure config directory exists
+    mkdir -p "$XRAY_INSTALL_DIR"
+
+    # Create the config file with improved Reality settings
     cat > "$XRAY_CONFIG_FILE" << EOF
 {
   "log": {
@@ -136,7 +184,8 @@ function create_config() {
           ],
           "privateKey": "${PRIVATE_KEY}",
           "shortIds": [
-            "${SHORT_ID}"
+            "${SHORT_ID}",
+            ""
           ]
         }
       }
@@ -151,7 +200,18 @@ function create_config() {
       "protocol": "blackhole",
       "tag": "blocked"
     }
-  ]
+  ],
+  "routing": {
+    "rules": [
+      {
+        "type": "field",
+        "protocol": [
+          "bittorrent"
+        ],
+        "outboundTag": "blocked"
+      }
+    ]
+  }
 }
 EOF
 
@@ -159,12 +219,16 @@ EOF
         print_message "$RED" "Failed to create config file."
         exit 1
     fi
+    
+    # Set proper permissions
+    chmod 644 "$XRAY_CONFIG_FILE"
+    
     print_message "$GREEN" "Xray configuration created successfully at ${XRAY_CONFIG_FILE}"
 }
 
 function display_connection_info() {
     local ip_address
-    ip_address=$(curl -s https://api.ipify.org)
+    ip_address=$(curl -s https://api.ipify.org || curl -s https://ipinfo.io/ip || curl -s https://icanhazip.com)
 
     print_message "$YELLOW" "--- AviterX1Pro Xray Script ---"
     print_message "$GREEN" "Protocol: VLESS"
@@ -178,15 +242,51 @@ function display_connection_info() {
     print_message "$GREEN" "Short ID: ${SHORT_ID}"
     print_message "$YELLOW" "---------------------------------"
 
-    # Generate share link
-    local share_link="vless://${UUID}@${ip_address}:${LISTEN_PORT}?security=reality&sni=${SNI_DOMAIN}&flow=xtls-rprx-vision&publicKey=${PUBLIC_KEY}&shortId=${SHORT_ID}#Xray_Reality"
+    # Generate share link (URL encoded)
+    local encoded_sni=$(printf '%s' "$SNI_DOMAIN" | sed 's/ /%20/g')
+    local share_link="vless://${UUID}@${ip_address}:${LISTEN_PORT}?security=reality&sni=${encoded_sni}&flow=xtls-rprx-vision&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp&headerType=none#Xray_Reality"
+    
     print_message "$BLUE" "Share Link (copy this into your client):"
     echo "${share_link}"
+    echo ""
+    
+    # Save connection info to file
+    cat > "/root/xray_connection_info.txt" << EOF
+=== Xray Reality Connection Info ===
+Protocol: VLESS
+Address: ${ip_address}
+Port: ${LISTEN_PORT}
+UUID: ${UUID}
+Flow: xtls-rprx-vision
+Security: reality
+SNI: ${SNI_DOMAIN}
+Public Key: ${PUBLIC_KEY}
+Short ID: ${SHORT_ID}
+Fingerprint: ${FINGERPRINT}
+
+Share Link:
+${share_link}
+EOF
+    
+    print_message "$GREEN" "Connection info saved to /root/xray_connection_info.txt"
 }
 
+function configure_firewall() {
+    print_message "$BLUE" "Configuring firewall..."
+    
+    # Check if ufw is installed
+    if command -v ufw >/dev/null 2>&1; then
+        ufw allow "$LISTEN_PORT"/tcp
+        print_message "$GREEN" "Firewall configured for port $LISTEN_PORT"
+    else
+        print_message "$YELLOW" "UFW not found. Please manually open port $LISTEN_PORT in your firewall."
+    fi
+}
 
 # --- Main Function ---
 function main() {
+    print_message "$GREEN" "Starting Xray Reality installation..."
+    
     check_root
     update_system
     install_dependencies
@@ -194,20 +294,28 @@ function main() {
     generate_keys
     get_user_input
     create_config
+    configure_firewall
 
     print_message "$BLUE" "Restarting Xray service..."
+    systemctl daemon-reload
     systemctl restart xray
     systemctl enable xray
+    
+    # Wait a moment for service to start
+    sleep 3
 
     if systemctl is-active --quiet xray; then
-        print_message "$GREEN" "Xray service is running."
+        print_message "$GREEN" "Xray service is running successfully."
     else
-        print_message "$RED" "Xray service failed to start. Check logs with 'journalctl -u xray'."
+        print_message "$RED" "Xray service failed to start. Checking logs..."
+        journalctl -u xray --no-pager -n 20
         exit 1
     fi
 
     display_connection_info
     print_message "$GREEN" "Installation complete!"
+    print_message "$YELLOW" "You can check service status with: systemctl status xray"
+    print_message "$YELLOW" "View logs with: journalctl -u xray -f"
 }
 
 # --- Script Execution ---
