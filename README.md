@@ -1,86 +1,81 @@
-# 🚀 Bash-Xray-Install
+# Xray Installation Script
 
-A modern, automated bash script to easily install and configure **Xray-core** on your Debian or Ubuntu-based VPS. This script sets up a secure VLESS proxy in minutes! 💻🔐
+Automated installation and configuration of Xray-core with VLESS-XTLS-Reality protocol for Debian/Ubuntu systems.
 
----
+## Features
 
-## 📌 Features
+- One-command installation with latest Xray-core
+- VLESS-XTLS-Reality protocol with traffic camouflage
+- Automatic key generation and configuration
+- Client-ready share URLs
+- Systemd service integration
 
-✅ One-liner installation\
-✅ Automatically downloads and installs latest Xray-core\
-✅ Configures secure VLESS protocol with TLS\
-✅ Enables and starts the Xray systemd service\
-✅ Easy management with systemctl\
-✅ Lightweight, clean, and fast setup
-
----
-
-## ⚙️ Installation
-
-Run the following commands **one by one** in your terminal:
+## Installation
 
 ```bash
+# Switch to root user
 sudo -s
+
+# Download the script
+wget -O install_xray.sh "https://raw.githubusercontent.com/AviterX/Bash-Xray-Script/main/install_xray.sh"
+
+# Make executable and run
+chmod +x install_xray.sh && ./install_xray.sh
 ```
+
+## Configuration
+
+You'll be prompted for:
+- **UUID**: [UUID Generator](https://www.uuidgenerator.net/)
+- **Port**: Default 443
+- **SNI Domain**: Use popular domains like `zoom.us`
+
+## Management
 
 ```bash
-wget -O install_xray.sh "https://raw.githubusercontent.com/AviterX/Bash-Xray-Script/refs/heads/main/install_xray.sh"
+# Service control
+systemctl status|start|stop|restart xray
+
+# View logs
+journalctl -u xray -f
+
+# Connection info
+cat /root/xray_connection_info.txt
 ```
+
+## Client Compatibility
+
+- v2rayN (Windows)
+- Nekoray (Cross-platform)
+- Netmod (Windows)
+- v2rayNG (Android)
+- FoXray (iOS)
+
+## File Locations
+
+- Config: `/usr/local/etc/xray/config.json`
+- Binary: `/usr/local/bin/xray`
+- Connection info: `/root/xray_connection_info.txt`
+
+## Troubleshooting
 
 ```bash
-chmod +x install_xray.sh
+# Check service logs
+journalctl -u xray --no-pager -n 20
+
+# Test configuration
+/usr/local/bin/xray -test -config /usr/local/etc/xray/config.json
 ```
 
-```bash
-./install_xray.sh
-```
+## License
 
-📎 **Note:** You will need to generate a UUID manually. 👉 Get your UUID from [uuidgenerator.net](https://www.uuidgenerator.net/)
+MIT License - Use responsibly and comply with local laws.
+
+---
+## Disclaimer
+
+This software is provided for educational purposes. Users are responsible for compliance with local laws and regulations. The authors assume no liability for misuse or legal violations.
 
 ---
 
-## 🛠️ Managing Your Xray Service
-
-Use the following `systemctl` commands to manage Xray on your VPS:
-
-🔍 Check service status:
-
-```bash
-systemctl status xray
-```
-
-⛔ Stop the service:
-
-```bash
-systemctl stop xray
-```
-
-▶️ Start the service:
-
-```bash
-systemctl start xray
-```
-
-🔄 Restart the service:
-
-```bash
-systemctl restart xray
-```
-
-📜 View real-time logs:
-
-```bash
-journalctl -u xray -f
-```
-
-## 🙋‍♂️ Author
-
-Made with ❤️ by [Team AviterX](https://github.com/AviterX)
-
-## ☕ Support / Contributions
-
-If you find this helpful, give it a ⭐ on GitHub! Contributions and suggestions are welcome.
-
-## 🔐 Disclaimer
-
-Use this script responsibly. Ensure your usage complies with your country's laws and your server provider's terms of service.
+⭐ **Star this repo if helpful!**
