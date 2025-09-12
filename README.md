@@ -13,13 +13,12 @@ Automated installation and configuration of Xray-core with VLESS-XTLS-Reality pr
 ## Installation
 
 ```bash
-# Switch to root user
 sudo -s
-
-# Download the script
+```
+```bash
 wget -O install_xray.sh "https://raw.githubusercontent.com/AviterX/Bash-Xray-Script/main/install_xray.sh"
-
-# Make executable and run
+```
+```bash
 chmod +x install_xray.sh && ./install_xray.sh
 ```
 
